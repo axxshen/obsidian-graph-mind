@@ -3,7 +3,7 @@
 	"name": "Graph Mind",
 	"version": "1.0.1",
 	"minAppVersion": "1.11.5",
-	"description": "Search and chat with your Obsidian vault locally using Graph Mind.",
+	"description": "AI-powered graph exploration, semantic search, and connected-note navigation.",
 	"author": "axxshen",
 	"authorUrl": "https://github.com/axxshen",
 	"isDesktopOnly": true
