@@ -1,0 +1,10 @@
+{
+	"id": "graph-mind",
+	"name": "Graph Mind",
+	"version": "1.0.1",
+	"minAppVersion": "1.11.5",
+	"description": "Search and chat with your Obsidian vault locally using Graph Mind.",
+	"author": "axxshen",
+	"authorUrl": "https://github.com/axxshen/obsidian-graph-mind",
+	"isDesktopOnly": true
+}
