@@ -142,8 +142,8 @@ export class GraphMindAgent {
             if (searchResults.length > 0) {
                 yield { type: 'thought', content: `Embedding complete` };
             }
-        } catch (e) {
-            console.error("Search failed:", e);
+        } catch (error) {
+            console.error("Search failed:", error);
             yield { type: 'token', content: "I encountered an error while searching your vault." };
             yield { type: 'done' };
             return;
@@ -275,10 +275,11 @@ export class GraphMindAgent {
                                 similarity, 
                                 chunkLen: cleanContent.length 
                             };
-                        } catch (e) {
+                        } catch (error) {
                             // 4. DIAGNOSTIC LOGGING: Detect the "Poison" Chunk
                             console.error(`[Graph Mind] ⚠️ OLLAMA CRASH on Chunk ID ${chunk.id} from file: "${chunk.path}"`);
                             console.error(`[Graph Mind] ⚠️ Bad Content Preview: >>>${cleanContent.substring(0, 100)}...<<<`);
+                            console.error("[Graph Mind] ⚠️ Error:", error);
                             
                             // Return dummy result to keep the rest of the search alive
                             return { 
@@ -376,8 +377,8 @@ export class GraphMindAgent {
             
             yield { type: 'result', content: topDocs };
 
-        } catch (e) {
-            console.error("[Graph Mind] Reranking failed, falling back to keyword order:", e);
+        } catch (error) {
+            console.error("[Graph Mind] Reranking failed, falling back to keyword order:", error);
             const fallbackDocs: RankedDoc[] = candidates.slice(0, 12).map((doc) => ({
                 path: doc.path,
                 content: doc.content,
