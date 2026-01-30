@@ -1,4 +1,4 @@
-import { Notice } from 'obsidian';
+import { requestUrl } from 'obsidian';
 
 export interface Message {
     role: 'system' | 'user' | 'assistant';
@@ -24,7 +24,8 @@ export class OllamaService {
         const selectedModel = model || this.defaultModel;
         
         try {
-            const response = await fetch(`${this.baseUrl}/api/chat`, {
+            const response = await requestUrl({
+                url: `${this.baseUrl}/api/chat`,
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -36,13 +37,13 @@ export class OllamaService {
                 })
             });
 
-            if (!response.ok) {
-                const errorText = await response.text();
+            if (response.status >= 400) {
+                const errorText = response.text ?? JSON.stringify(response.json ?? {});
                 throw new Error(`Ollama Error (${response.status}): ${errorText}`);
             }
 
-            const data = await response.json();
-            return data.message.content;
+            const data = response.json as { message?: { content?: string } };
+            return data.message?.content ?? "";
 
         } catch (error) {
             console.error("Ollama Service Error:", error);
@@ -51,56 +52,8 @@ export class OllamaService {
     }
 
     async *chatStream(messages: Message[], model?: string): AsyncGenerator<string, void, unknown> {
-        const selectedModel = model || this.defaultModel;
-        
-        try {
-            const response = await fetch(`${this.baseUrl}/api/chat`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    model: selectedModel,
-                    messages: messages,
-                    stream: true 
-                })
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Ollama Error (${response.status}): ${errorText}`);
-            }
-
-            if (!response.body) throw new Error("No response body");
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                const chunk = decoder.decode(value, { stream: true });
-                const lines = chunk.split('\n');
-
-                for (const line of lines) {
-                    if (!line.trim()) continue;
-                    try {
-                        const json = JSON.parse(line);
-                        if (json.message && json.message.content) {
-                            yield json.message.content;
-                        }
-                        if (json.done) return;
-                    } catch (e) {
-                        console.warn("Error parsing JSON chunk", e);
-                    }
-                }
-            }
-
-        } catch (error) {
-            console.error("Ollama Service Error:", error);
-            throw error;
-        }
+        const content = await this.chat(messages, model);
+        if (content) yield content;
     }
 
     async getEmbeddings(prompt: string, model?: string, retries: number = 3): Promise<number[]> {
@@ -108,7 +61,8 @@ export class OllamaService {
         
         for (let attempt = 0; attempt < retries; attempt++) {
             try {
-                const response = await fetch(`${this.baseUrl}/api/embeddings`, {
+                const response = await requestUrl({
+                    url: `${this.baseUrl}/api/embeddings`,
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -119,13 +73,13 @@ export class OllamaService {
                     })
                 });
 
-                if (!response.ok) {
-                    const errorText = await response.text();
+                if (response.status >= 400) {
+                    const errorText = response.text ?? JSON.stringify(response.json ?? {});
                     throw new Error(`Ollama Embedding Error (${response.status}): ${errorText}`);
                 }
 
-                const data = await response.json();
-                return data.embedding;
+                const data = response.json as { embedding?: number[] };
+                return data.embedding ?? [];
             } catch (error) {
                 if (attempt === retries - 1) {
                     console.error("Ollama Embedding Error (final attempt):", error);
@@ -142,11 +96,11 @@ export class OllamaService {
 
     async listModels(): Promise<{ name: string; size: number; modified: string }[]> {
         try {
-            const response = await fetch(`${this.baseUrl}/api/tags`);
-            if (!response.ok) {
+            const response = await requestUrl({ url: `${this.baseUrl}/api/tags` });
+            if (response.status >= 400) {
                 throw new Error(`Failed to fetch models: ${response.status}`);
             }
-            const data = await response.json();
+            const data = response.json as { models?: { name: string; size: number; modified: string }[] };
             return data.models || [];
         } catch (error) {
             console.error("Failed to list Ollama models:", error);

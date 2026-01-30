@@ -1,28 +1,59 @@
-import { Notice, TFile } from "obsidian";
+import { Notice } from "obsidian";
 import { OllamaService, Message } from "./services/ollamaService";
 import { webSearchResponsePrompt, webSearchRetrieverPrompt, webSearchRetrieverFewShots } from "./prompts";
 import { parseQuery, matchesFilters, type ParsedQuery } from "./search/queryParser";
-import { MDocument } from "@mastra/rag";
+import type { GraphMindSettings } from "./settings";
+import type { SearchResult } from "./services/searchService";
 
 const DEBUG = true;
 const debugLog = (...args: unknown[]) => {
-    if (DEBUG) console.log(...args);
+    if (DEBUG) console.debug(...args);
 };
 
 export type AgentEvent = 
     | { type: 'thought', content: string }
     | { type: 'token', content: string }
-    | { type: 'sources', content: any[] }
+    | { type: 'sources', content: RankedDoc[] }
     | { type: 'progress', content: { current: number, total: number } }
     | { type: 'done' };
 
+interface AgentPluginDeps {
+    settings: GraphMindSettings;
+    searchService: {
+        search: (query: string, topK?: number, timeoutMs?: number) => Promise<SearchResult[]>;
+    };
+}
+
+interface CandidateChunk {
+    id: string;
+    path: string;
+    content: string;
+    keywordScore: number;
+    finalScore?: number;
+    similarity?: number;
+    chunkLen?: number;
+}
+
+interface RankedDoc {
+    path: string;
+    content: string;
+    keywordScore: number;
+    finalScore: number;
+    similarity: number;
+    chunks: CandidateChunk[];
+}
+
+type SearchEvent =
+    | { type: 'progress'; content: { current: number; total: number } }
+    | { type: 'result'; content: RankedDoc[] };
+
 export class GraphMindAgent {
     private ollama: OllamaService;
-    private plugin: any;
+    private plugin: AgentPluginDeps;
     private notify: (msg: string) => void;
     private progressCallback: ((progress: { current: number, total: number }) => void) | null = null;
 
-    constructor(plugin: any, notify: (msg: string) => void) {
+    constructor(plugin: AgentPluginDeps, notify: (msg: string) => void) {
         this.plugin = plugin;
         this.notify = notify;
         // Initialize OllamaService with settings from plugin
@@ -90,12 +121,12 @@ export class GraphMindAgent {
         }
         
         debugLog(`[Graph Mind] Search query: "${generatedQuery}"`);
-        yield { type: 'thought', content: `Search Query: "${generatedQuery}"` };
+        yield { type: 'thought', content: `Search query: "${generatedQuery}"` };
 
         // 2. Keyword Search (Always perform search to ground answers in vault)
         debugLog("[Graph Mind] Stage: keyword-search + rerank");
         yield { type: 'thought', content: `Searching vault for relevant notes...` };
-        let searchResults: any[] = [];
+        let searchResults: RankedDoc[] = [];
         try {
             // Inline the search with progress reporting
             const searchGen = this.searchVaultWithProgress(generatedQuery, parsedQuery);
@@ -161,7 +192,7 @@ export class GraphMindAgent {
         return fullAnswer;
     }
 
-    private async *searchVaultWithProgress(query: string, parsedQuery: ParsedQuery): AsyncGenerator<{ type: 'progress' | 'result', content: any }, void, unknown> {
+    private async *searchVaultWithProgress(query: string, parsedQuery: ParsedQuery): AsyncGenerator<SearchEvent, void, unknown> {
         // Use internal search service with improved logic
         debugLog("[Graph Mind] Step 1: keyword-search");
         
@@ -178,11 +209,11 @@ export class GraphMindAgent {
 
         // Note: candidates are already chunked by Indexer using Mastra 512/50
         // Each candidate is a chunk, not a full document
-        const chunks = candidates.map((doc: any) => ({
+        const chunks: CandidateChunk[] = candidates.map((doc) => ({
             id: doc.id,
             path: doc.path,
             content: doc.content,
-            keywordScore: doc.keywordScore
+            keywordScore: doc.keywordScore ?? doc.score ?? 0
         }));
         
         debugLog(`[Graph Mind] Processing ${chunks.length} pre-chunked candidates...`);
@@ -201,7 +232,7 @@ export class GraphMindAgent {
             // First request will be slower (model switching), subsequent ones are fast
             const BATCH_SIZE = 1;
             
-            const scoredChunks: any[] = [];
+            const scoredChunks: CandidateChunk[] = [];
             
             for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
                 const batch = chunks.slice(i, i + BATCH_SIZE);
@@ -209,7 +240,7 @@ export class GraphMindAgent {
                 // Process current batch in parallel
                 debugLog(`[Graph Mind] Batch ${Math.floor(i / BATCH_SIZE) + 1} start (${batch.length} chunks)`);
                 const batchResults = await Promise.all(
-                    batch.map(async (chunk: any, idx: number) => {
+                    batch.map(async (chunk: CandidateChunk, idx: number) => {
                         const index = i + idx;
                         // 1. SANITIZATION: Clean the content first
                         // Remove null bytes and trim whitespace
@@ -274,12 +305,12 @@ export class GraphMindAgent {
 
             // 4. Sort by Final Score
             debugLog("[Graph Mind] Step 3: sort by final score");
-            scoredChunks.sort((a, b) => b.finalScore - a.finalScore);
+            scoredChunks.sort((a, b) => (b.finalScore ?? -Infinity) - (a.finalScore ?? -Infinity));
 
             // Log top results for debugging
             debugLog("[Graph Mind] ✓ Reranking complete. Top 10 Chunks:");
             scoredChunks.slice(0, 10).forEach((chunk, i) => {
-                debugLog(`  #${i+1} ${chunk.path} [${chunk.id}] | Final: ${chunk.finalScore.toFixed(4)} (Sim: ${chunk.similarity?.toFixed(4)}, Key: ${chunk.keywordScore.toFixed(4)})`);
+                debugLog(`  #${i+1} ${chunk.path} [${chunk.id}] | Final: ${(chunk.finalScore ?? 0).toFixed(4)} (Sim: ${chunk.similarity?.toFixed(4)}, Key: ${chunk.keywordScore.toFixed(4)})`);
             });
 
             // 5. Apply advanced query filters (ext:, path:, exact match, excludes)
@@ -303,33 +334,35 @@ export class GraphMindAgent {
                 for (const chunk of filteredChunks) {
                     const chunkLower = chunk.content.toLowerCase();
                     if (parsedQuery.tags.some((tag: string) => chunkLower.includes(tag.toLowerCase()))) {
-                        chunk.finalScore *= 100;
+                        if (chunk.finalScore !== undefined) chunk.finalScore *= 100;
                     }
                 }
-                filteredChunks.sort((a, b) => b.finalScore - a.finalScore);
+                filteredChunks.sort((a, b) => (b.finalScore ?? -Infinity) - (a.finalScore ?? -Infinity));
             }
 
             // 7. Group chunks by document and return top documents with their best chunks
             debugLog("[Graph Mind] Step 6: group by doc");
-            const docMap = new Map<string, any>();
+            const docMap = new Map<string, RankedDoc>();
             for (const chunk of filteredChunks.slice(0, 50)) { // Take top 50 chunks
                 if (!docMap.has(chunk.path)) {
                     docMap.set(chunk.path, {
                         path: chunk.path,
                         content: chunk.content,
                         keywordScore: chunk.keywordScore,
-                        finalScore: chunk.finalScore,
-                        similarity: chunk.similarity,
+                        finalScore: chunk.finalScore ?? 0,
+                        similarity: chunk.similarity ?? 0,
                         chunks: [chunk]
                     });
                 } else {
                     const doc = docMap.get(chunk.path);
-                    doc.chunks.push(chunk);
-                    // Update doc score to be the max of its chunks
-                    if (chunk.finalScore > doc.finalScore) {
-                        doc.finalScore = chunk.finalScore;
-                        doc.similarity = chunk.similarity;
-                        doc.content = chunk.content; // Use best chunk as representative
+                    if (doc) {
+                        doc.chunks.push(chunk);
+                        // Update doc score to be the max of its chunks
+                        if ((chunk.finalScore ?? 0) > doc.finalScore) {
+                            doc.finalScore = chunk.finalScore ?? 0;
+                            doc.similarity = chunk.similarity ?? 0;
+                            doc.content = chunk.content; // Use best chunk as representative
+                        }
                     }
                 }
             }
@@ -345,7 +378,15 @@ export class GraphMindAgent {
 
         } catch (e) {
             console.error("[Graph Mind] Reranking failed, falling back to keyword order:", e);
-            yield { type: 'result', content: candidates.slice(0, 12) };
+            const fallbackDocs: RankedDoc[] = candidates.slice(0, 12).map((doc) => ({
+                path: doc.path,
+                content: doc.content,
+                keywordScore: doc.keywordScore ?? doc.score ?? 0,
+                finalScore: doc.score ?? 0,
+                similarity: 0,
+                chunks: []
+            }));
+            yield { type: 'result', content: fallbackDocs };
         }
     }
 
@@ -397,7 +438,7 @@ ${userQuery}
 }
 
 // Legacy wrapper for compatibility with ChatView
-export async function runAgentLoop(userQuery: string, plugin: any, onThought?: (msg: string) => void): Promise<string> {
+export async function runAgentLoop(userQuery: string, plugin: AgentPluginDeps, onThought?: (msg: string) => void): Promise<string> {
     const notify = onThought || ((msg: string) => new Notice(msg));
     const agent = new GraphMindAgent(plugin, notify);
     

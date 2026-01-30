@@ -82,7 +82,7 @@ export function parseQuery(rawQuery: string): ParsedQuery {
  * Check if result matches advanced filters
  */
 export function matchesFilters(
-    result: any,
+    result: { path?: string; id?: string },
     parsed: ParsedQuery,
     docContent: string
 ): boolean {

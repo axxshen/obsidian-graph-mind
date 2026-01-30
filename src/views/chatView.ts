@@ -1,5 +1,5 @@
 import { ItemView, WorkspaceLeaf, MarkdownRenderer, ButtonComponent, TextAreaComponent, setIcon } from "obsidian";
-import { GraphMindAgent, AgentEvent } from "../agent";
+import { GraphMindAgent } from "../agent";
 import { Message } from "../services/ollamaService";
 import GraphMindPlugin from "../../main";
 
@@ -30,7 +30,8 @@ export class ChatView extends ItemView {
         return "bot";
     }
 
-    async onOpen() {
+    async onOpen(): Promise<void> {
+        await Promise.resolve();
         const container = this.containerEl.children[1];
         container.empty();
         container.addClass("chat-view-container");
@@ -45,7 +46,7 @@ export class ChatView extends ItemView {
                 e.preventDefault();
                 const href = target.getAttribute("href");
                 if (href) {
-                    this.plugin.app.workspace.openLinkText(href, "", false);
+                    this.app.workspace.openLinkText(href, "", false);
                 }
             }
         });
@@ -56,25 +57,23 @@ export class ChatView extends ItemView {
         // Input Area
         this.inputContainer = container.createDiv({ cls: "chat-input-area" });
         
-        const inputEl = new TextAreaComponent(this.inputContainer)
-            .setPlaceholder("Ask Graph Mind...")
-            .then((ta) => {
-                ta.inputEl.addClass("chat-input");
-                // Handle Enter key to submit (Shift+Enter for newline)
-                ta.inputEl.addEventListener("keydown", (e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        this.handleSubmit(ta.getValue());
-                        ta.setValue("");
-                    }
-                });
-            });
+        const inputEl = new TextAreaComponent(this.inputContainer);
+        inputEl.setPlaceholder("Ask Graph Mind...");
+        inputEl.inputEl.addClass("chat-input");
+        // Handle Enter key to submit (Shift+Enter for newline)
+        inputEl.inputEl.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void this.handleSubmit(inputEl.getValue());
+                inputEl.setValue("");
+            }
+        });
 
         new ButtonComponent(this.inputContainer)
             .setButtonText("Send")
             .setCta()
             .onClick(() => {
-                this.handleSubmit(inputEl.getValue());
+                void this.handleSubmit(inputEl.getValue());
                 inputEl.setValue("");
             });
     }
@@ -99,9 +98,8 @@ export class ChatView extends ItemView {
 
         const thinkingContent = thinkingContainer.createDiv({ cls: "thinking-content" });
         const thinkingSteps = thinkingContent.createDiv({ cls: "thinking-steps" });
-        const thinkingProgressBar = thinkingContent.createDiv({ cls: "thinking-progress-bar" });
+        const thinkingProgressBar = thinkingContent.createDiv({ cls: "thinking-progress-bar is-hidden" });
         const thinkingProgressFill = thinkingProgressBar.createDiv({ cls: "thinking-progress-fill" });
-        thinkingProgressBar.style.display = "none"; // Hide initially
         const thinkingSources = thinkingContent.createDiv({ cls: "thinking-sources" });
 
         // Toggle collapse
@@ -112,12 +110,10 @@ export class ChatView extends ItemView {
         const contentContainer = assistantBubble.createDiv({ cls: "chat-content" });
         
         // Add copy button container (will be shown after content is generated)
-        const copyButtonContainer = assistantBubble.createDiv({ cls: "copy-button-container" });
-        copyButtonContainer.style.display = "none"; // Hide initially
+        const copyButtonContainer = assistantBubble.createDiv({ cls: "copy-button-container is-hidden" });
 
         let fullAnswer = "";
-        let sources: any[] = [];
-        let stepCount = 0;
+        let sources: Array<{ path: string }> = [];
         let currentStepEl: HTMLElement | null = null;
 
         try {
@@ -141,11 +137,10 @@ export class ChatView extends ItemView {
                     stepEl.createSpan({ text: event.content });
                     
                     currentStepEl = stepEl;
-                    stepCount++;
                     this.scrollToBottom();
                 } else if (event.type === 'progress') {
                     // Show and update progress bar
-                    thinkingProgressBar.style.display = "block";
+                    thinkingProgressBar.removeClass("is-hidden");
                     const progress = event.content; // Expecting { current: number, total: number }
                     const percentage = (progress.current / progress.total) * 100;
                     thinkingProgressFill.style.width = `${percentage}%`;
@@ -167,13 +162,7 @@ export class ChatView extends ItemView {
                         });
                     }
 
-                    MarkdownRenderer.render(
-                        this.plugin.app,
-                        processedAnswer,
-                        contentContainer,
-                        "",
-                        this.plugin
-                    );
+                    MarkdownRenderer.render(this.app, processedAnswer, contentContainer, "", this);
                     this.scrollToBottom();
                 } else if (event.type === 'sources') {
                     // Complete last step if exists
@@ -188,7 +177,7 @@ export class ChatView extends ItemView {
                     sources = event.content;
                     
                     // Hide progress bar when sources are ready
-                    thinkingProgressBar.style.display = "none";
+                    thinkingProgressBar.addClass("is-hidden");
                     
                     // Update text only after completion
                     if (sources.length > 0) {
@@ -209,7 +198,7 @@ export class ChatView extends ItemView {
                         // Handle click to open file
                         sourceEl.addEventListener("click", (e) => {
                             e.preventDefault();
-                            this.plugin.app.workspace.openLinkText(source.path, "", false);
+                            this.app.workspace.openLinkText(source.path, "", false);
                         });
                     });
                 } else if (event.type === 'done') {
@@ -239,20 +228,23 @@ export class ChatView extends ItemView {
                     
                     // Show copy button when done
                     if (fullAnswer.trim()) {
-                        copyButtonContainer.style.display = "flex";
+                        copyButtonContainer.removeClass("is-hidden");
                         const copyBtn = copyButtonContainer.createEl("button", { 
                             cls: "copy-answer-button",
                             text: "Copy"
                         });
                         setIcon(copyBtn, "copy");
                         
-                        copyBtn.addEventListener("click", async () => {
-                            await navigator.clipboard.writeText(fullAnswer);
-                            copyBtn.textContent = "Copied!";
-                            setTimeout(() => {
-                                copyBtn.empty();
-                                setIcon(copyBtn, "copy");
-                            }, 2000);
+                        copyBtn.addEventListener("click", () => {
+                            void navigator.clipboard.writeText(fullAnswer).then(() => {
+                                copyBtn.textContent = "Copied!";
+                                setTimeout(() => {
+                                    copyBtn.empty();
+                                    setIcon(copyBtn, "copy");
+                                }, 2000);
+                            }).catch((error: unknown) => {
+                                console.error("Failed to copy:", error);
+                            });
                         });
                     }
                 }
@@ -261,8 +253,9 @@ export class ChatView extends ItemView {
             // Note: Stateless mode - no history tracking
             // Each query is independent and only relies on vault content
 
-        } catch (e) {
-            contentContainer.createDiv({ cls: "error-message", text: `Error: ${e.message}` });
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : String(e);
+            contentContainer.createDiv({ cls: "error-message", text: `Error: ${message}` });
         }
     }
 
@@ -270,13 +263,7 @@ export class ChatView extends ItemView {
         const bubble = this.messageContainer.createDiv({ cls: `chat-bubble chat-bubble-${role}` });
         
         // Render Markdown
-        MarkdownRenderer.render(
-            this.plugin.app,
-            text,
-            bubble,
-            "",
-            this.plugin
-        );
+        MarkdownRenderer.render(this.app, text, bubble, "", this);
 
         this.scrollToBottom();
     }
@@ -289,7 +276,8 @@ export class ChatView extends ItemView {
         this.messageContainer.scrollTop = this.messageContainer.scrollHeight;
     }
 
-    async onClose() {
+    async onClose(): Promise<void> {
+        await Promise.resolve();
         // Cleanup if needed
     }
 }

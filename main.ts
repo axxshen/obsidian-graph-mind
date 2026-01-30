@@ -7,7 +7,7 @@ import workerCode from "virtual:worker";
 
 const DEBUG = true;
 const debugLog = (...args: unknown[]) => {
-    if (DEBUG) console.log(...args);
+    if (DEBUG) console.debug(...args);
 };
 
 export default class GraphMindPlugin extends Plugin {
@@ -21,7 +21,7 @@ export default class GraphMindPlugin extends Plugin {
         await this.loadSettings();
 
         this.statusBarItem = this.addStatusBarItem();
-        this.statusBarItem.setText('Graph Mind: Idle');
+        this.statusBarItem.setText('Graph Mind: idle');
 
         // Register View
         this.registerView(
@@ -30,29 +30,31 @@ export default class GraphMindPlugin extends Plugin {
         );
 
         // Ribbon Icon to Open Chat
-        this.addRibbonIcon('bot', 'Open Graph Mind chat', () => {
-            this.activateView();
+        this.addRibbonIcon('bot', 'Open chat', () => {
+            void this.activateView();
         });
 
-        await this.initWorker();
+        this.initWorker();
 
         this.indexer = new Indexer(this.app.vault, this.worker);
         this.searchService = new SearchService(this.worker);
 
         // Auto-index on startup
-        this.statusBarItem.setText('Graph Mind: Indexing...');
-        this.indexer.buildIndex((completed, total) => {
-            this.statusBarItem.setText(`Graph Mind: Indexing (${completed}/${total})`);
+        this.statusBarItem.setText('Graph Mind: indexing...');
+        void this.indexer.buildIndex((completed, total) => {
+            this.statusBarItem.setText(`Graph Mind: indexing (${completed}/${total})`);
             if (completed === total) {
-                this.statusBarItem.setText('Graph Mind: Ready');
+                this.statusBarItem.setText('Graph Mind: ready');
                 debugLog("Graph Mind indexing complete");
             }
+        }).catch((error: unknown) => {
+            console.error("Graph Mind indexing failed:", error);
         });
 
         // Register Vault Events for Auto-Indexing
         this.registerEvent(this.app.vault.on('create', (file) => {
             if (file instanceof TFile && file.extension === 'md') {
-                this.indexer.indexFile(file);
+                void this.indexer.indexFile(file);
             }
         }));
 
@@ -64,36 +66,30 @@ export default class GraphMindPlugin extends Plugin {
 
         this.registerEvent(this.app.vault.on('modify', (file) => {
             if (file instanceof TFile && file.extension === 'md') {
-                this.indexer.indexFile(file);
+                void this.indexer.indexFile(file);
             }
         }));
 
         this.registerEvent(this.app.vault.on('rename', (file, oldPath) => {
             if (file instanceof TFile && file.extension === 'md') {
                 this.indexer.deleteFile(oldPath);
-                this.indexer.indexFile(file);
+                void this.indexer.indexFile(file);
             }
         }));
 
         this.addCommand({
             id: 'build-index',
-            name: 'Build Graph Mind index',
-            callback: async () => {
-                this.statusBarItem.setText('Graph Mind: Indexing...');
-                new Notice('Starting Indexing...');
-                await this.indexer.buildIndex((completed, total) => {
-                    this.statusBarItem.setText(`Graph Mind: Indexing (${completed}/${total})`);
-                });
-                this.statusBarItem.setText('Graph Mind: Ready');
-                new Notice('Indexing Complete!');
+            name: 'Build index',
+            callback: () => {
+                void this.runBuildIndex();
             }
         });
 
         this.addCommand({
             id: 'open-brain-chat',
-            name: 'Open Graph Mind chat',
+            name: 'Open chat',
             callback: () => {
-                this.activateView();
+                void this.activateView();
             }
         });
 
@@ -133,7 +129,7 @@ export default class GraphMindPlugin extends Plugin {
         }
     }
 
-    async initWorker() {
+    initWorker() {
         try {
             // Load Worker Blob
             const pluginDir = this.manifest.dir;
@@ -160,7 +156,7 @@ export default class GraphMindPlugin extends Plugin {
                     new Notice("Graph Mind worker error: " + error);
                 } else if (data && data.message === 'Worker initialized') {
                     debugLog("Graph Mind worker initialized");
-                    this.statusBarItem.setText('Graph Mind: Ready');
+                    this.statusBarItem.setText('Graph Mind: ready');
                 }
             });
 
@@ -168,6 +164,16 @@ export default class GraphMindPlugin extends Plugin {
             console.error("Failed to initialize Graph Mind worker:", error);
             new Notice("Failed to initialize Graph Mind worker. Check console.");
         }
+    }
+
+    private async runBuildIndex(): Promise<void> {
+        this.statusBarItem.setText('Graph Mind: indexing...');
+        new Notice('Starting indexing...');
+        await this.indexer.buildIndex((completed, total) => {
+            this.statusBarItem.setText(`Graph Mind: indexing (${completed}/${total})`);
+        });
+        this.statusBarItem.setText('Graph Mind: ready');
+        new Notice('Indexing complete!');
     }
 
     onunload() {
