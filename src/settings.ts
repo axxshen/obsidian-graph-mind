@@ -49,8 +49,8 @@ export class GraphMindSettingTab extends PluginSettingTab {
 
         // Ollama Base URL
         new Setting(containerEl)
-            .setName('Ollama base URL')
-            .setDesc('URL of your Ollama server')
+            .setName('Ollama base url')
+            .setDesc('Ollama server url')
             .addText(text => text
                 .setPlaceholder('http://localhost:11434')
                 .setValue(this.plugin.settings.ollamaBaseUrl)
@@ -66,7 +66,7 @@ export class GraphMindSettingTab extends PluginSettingTab {
 
         // LLM Model Dropdown
         const llmSetting = new Setting(containerEl)
-            .setName('LLM model')
+            .setName('Language model')
             .setDesc('Model for chat and answer generation');
 
         if (this.availableModels.length > 0) {

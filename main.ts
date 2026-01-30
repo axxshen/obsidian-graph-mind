@@ -125,7 +125,7 @@ export default class GraphMindPlugin extends Plugin {
 
         // "Reveal" the leaf in case it is in a collapsed sidebar
         if (leaf) {
-            workspace.revealLeaf(leaf);
+            void workspace.revealLeaf(leaf);
         }
     }
 
