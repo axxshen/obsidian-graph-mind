@@ -162,7 +162,7 @@ export default class GraphMindPlugin extends Plugin {
 
         } catch (error) {
             console.error("Failed to initialize Graph Mind worker:", error);
-            new Notice("Failed to initialize Graph Mind worker. Check console.");
+            new Notice("Failed to initialize the worker. Check console.");
         }
     }
 

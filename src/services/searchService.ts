@@ -54,7 +54,12 @@ export class SearchService {
             };
             
             this.worker.postMessage(message);
-        }).then((response) => (response as unknown as { results: SearchResult[] }).results);
+        }).then((response): SearchResult[] => {
+            if (typeof response === "object" && response !== null && "results" in response) {
+                return (response as { results: SearchResult[] }).results;
+            }
+            throw new Error("Search response missing results.");
+        });
         
         return Promise.race([searchPromise, timeoutPromise]).finally(() => {
             // Clean up pending request if timeout occurred

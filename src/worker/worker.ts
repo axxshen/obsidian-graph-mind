@@ -253,7 +253,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
             }
 
             default:
-                throw new Error(`Unknown command: ${command}`);
+                throw new Error("Unknown command.");
         }
 
         const response: WorkerResponse = {
