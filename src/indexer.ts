@@ -1,4 +1,4 @@
-import { Vault, TFile, normalizePath } from "obsidian";
+import { Vault, TFile } from "obsidian";
 import { WorkerMessage } from "./worker/worker";
 import { MDocument } from "@mastra/rag";
 

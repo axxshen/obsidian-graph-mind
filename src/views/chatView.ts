@@ -23,7 +23,7 @@ export class ChatView extends ItemView {
     }
 
     getDisplayText(): string {
-        return "Graph Mind chat";
+        return "Chat";
     }
 
     getIcon(): string {
@@ -46,19 +46,19 @@ export class ChatView extends ItemView {
                 e.preventDefault();
                 const href = target.getAttribute("href");
                 if (href) {
-                    this.app.workspace.openLinkText(href, "", false);
+                    void this.app.workspace.openLinkText(href, "", false);
                 }
             }
         });
 
         // Initial Greeting
-        this.addMessage("assistant", "Hello! I am Graph Mind. Ask me anything about your vault.");
+        this.addMessage("assistant", "Hello! Ask me anything about your vault.");
 
         // Input Area
         this.inputContainer = container.createDiv({ cls: "chat-input-area" });
         
         const inputEl = new TextAreaComponent(this.inputContainer);
-        inputEl.setPlaceholder("Ask Graph Mind...");
+        inputEl.setPlaceholder("Ask about your vault...");
         inputEl.inputEl.addClass("chat-input");
         // Handle Enter key to submit (Shift+Enter for newline)
         inputEl.inputEl.addEventListener("keydown", (e) => {
@@ -162,7 +162,7 @@ export class ChatView extends ItemView {
                         });
                     }
 
-                    MarkdownRenderer.render(this.app, processedAnswer, contentContainer, "", this);
+                    void MarkdownRenderer.render(this.app, processedAnswer, contentContainer, "", this);
                     this.scrollToBottom();
                 } else if (event.type === 'sources') {
                     // Complete last step if exists
@@ -198,7 +198,7 @@ export class ChatView extends ItemView {
                         // Handle click to open file
                         sourceEl.addEventListener("click", (e) => {
                             e.preventDefault();
-                            this.app.workspace.openLinkText(source.path, "", false);
+                            void this.app.workspace.openLinkText(source.path, "", false);
                         });
                     });
                 } else if (event.type === 'done') {
@@ -263,7 +263,7 @@ export class ChatView extends ItemView {
         const bubble = this.messageContainer.createDiv({ cls: `chat-bubble chat-bubble-${role}` });
         
         // Render Markdown
-        MarkdownRenderer.render(this.app, text, bubble, "", this);
+        void MarkdownRenderer.render(this.app, text, bubble, "", this);
 
         this.scrollToBottom();
     }

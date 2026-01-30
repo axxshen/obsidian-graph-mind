@@ -1,8 +1,6 @@
 // @ts-ignore - MiniSearch is available at runtime
 import MiniSearch from 'minisearch';
 
-// nodejieba is not available in Obsidian worker runtime; fall back to basic tokenization.
-const jieba: null = null;
 const DEBUG = true;
 const debugLog = (...args: unknown[]) => {
     if (DEBUG) console.debug(...args);
@@ -115,7 +113,7 @@ const initMiniSearch = () => {
     }
 };
 
-self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
+self.onmessage = (event: MessageEvent<WorkerMessage>) => {
     const { command, payload, id } = event.data;
 
     try {

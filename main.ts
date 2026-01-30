@@ -21,7 +21,7 @@ export default class GraphMindPlugin extends Plugin {
         await this.loadSettings();
 
         this.statusBarItem = this.addStatusBarItem();
-        this.statusBarItem.setText('Graph Mind: idle');
+        this.statusBarItem.setText('Idle');
 
         // Register View
         this.registerView(
@@ -40,11 +40,11 @@ export default class GraphMindPlugin extends Plugin {
         this.searchService = new SearchService(this.worker);
 
         // Auto-index on startup
-        this.statusBarItem.setText('Graph Mind: indexing...');
+        this.statusBarItem.setText('Indexing...');
         void this.indexer.buildIndex((completed, total) => {
-            this.statusBarItem.setText(`Graph Mind: indexing (${completed}/${total})`);
+            this.statusBarItem.setText(`Indexing (${completed}/${total})`);
             if (completed === total) {
-                this.statusBarItem.setText('Graph Mind: ready');
+                this.statusBarItem.setText('Ready');
                 debugLog("Graph Mind indexing complete");
             }
         }).catch((error: unknown) => {
@@ -156,7 +156,7 @@ export default class GraphMindPlugin extends Plugin {
                     new Notice("Graph Mind worker error: " + error);
                 } else if (data && data.message === 'Worker initialized') {
                     debugLog("Graph Mind worker initialized");
-                    this.statusBarItem.setText('Graph Mind: ready');
+                    this.statusBarItem.setText('Ready');
                 }
             });
 
@@ -167,13 +167,13 @@ export default class GraphMindPlugin extends Plugin {
     }
 
     private async runBuildIndex(): Promise<void> {
-        this.statusBarItem.setText('Graph Mind: indexing...');
+        this.statusBarItem.setText('Indexing...');
         new Notice('Starting indexing...');
         await this.indexer.buildIndex((completed, total) => {
-            this.statusBarItem.setText(`Graph Mind: indexing (${completed}/${total})`);
+            this.statusBarItem.setText(`Indexing (${completed}/${total})`);
         });
-        this.statusBarItem.setText('Graph Mind: ready');
-        new Notice('Indexing complete!');
+        this.statusBarItem.setText('Ready');
+        new Notice('Indexing complete.');
     }
 
     onunload() {
