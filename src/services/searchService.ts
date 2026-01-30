@@ -12,7 +12,7 @@ export interface SearchResult {
 
 export class SearchService {
     private worker: Worker;
-    private pendingRequests: Map<string, { resolve: (data: any) => void, reject: (error: any) => void }>;
+    private pendingRequests: Map<string, { resolve: (data: unknown) => void, reject: (error: Error) => void }>;
     private idCounter: number = 0;
 
     constructor(worker: Worker) {
@@ -40,7 +40,7 @@ export class SearchService {
             setTimeout(() => reject(new Error('Search timeout exceeded')), timeoutMs);
         });
         
-        const searchPromise = new Promise((resolve, reject) => {
+        const searchPromise = new Promise<unknown>((resolve, reject) => {
             this.pendingRequests.set(id, { resolve, reject });
             
             const message: WorkerMessage = {
@@ -50,7 +50,7 @@ export class SearchService {
             };
             
             this.worker.postMessage(message);
-        }).then((response: any) => response.results);
+        }).then((response) => (response as { results: SearchResult[] }).results);
         
         return Promise.race([searchPromise, timeoutPromise]).finally(() => {
             // Clean up pending request if timeout occurred
@@ -59,7 +59,7 @@ export class SearchService {
     }
 
     // Add utility for raw index command if needed via service
-    public async indexDocument(id: string, content: string, meta: any): Promise<void> {
+    public async indexDocument(id: string, content: string, meta: Record<string, unknown>): Promise<void> {
          const msgId = `index-${this.idCounter++}`;
          return new Promise((resolve, reject) => {
              this.pendingRequests.set(msgId, { resolve, reject });

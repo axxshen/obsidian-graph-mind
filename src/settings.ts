@@ -34,12 +34,18 @@ export class GraphMindSettingTab extends PluginSettingTab {
         }
     }
 
-    async display(): Promise<void> {
+    display(): void {
+        const { containerEl } = this;
+        containerEl.empty();
+        void this.loadAvailableModels().then(() => {
+            this.renderSettings();
+        });
+    }
+
+    private renderSettings(): void {
         const { containerEl } = this;
 
         containerEl.empty();
-        // Load available models first
-        await this.loadAvailableModels();
 
         // Ollama Base URL
         new Setting(containerEl)
@@ -48,12 +54,14 @@ export class GraphMindSettingTab extends PluginSettingTab {
             .addText(text => text
                 .setPlaceholder('http://localhost:11434')
                 .setValue(this.plugin.settings.ollamaBaseUrl)
-                .onChange(async (value) => {
+                .onChange((value) => {
                     this.plugin.settings.ollamaBaseUrl = value || DEFAULT_SETTINGS.ollamaBaseUrl;
-                    await this.plugin.saveSettings();
-                    // Reload models when URL changes
-                    await this.loadAvailableModels();
-                    this.display(); // Refresh the settings page
+                    void this.plugin.saveSettings().then(() => {
+                        // Reload models when URL changes
+                        void this.loadAvailableModels().then(() => {
+                            this.renderSettings(); // Refresh the settings page
+                        });
+                    });
                 }));
 
         // LLM Model Dropdown
@@ -76,9 +84,9 @@ export class GraphMindSettingTab extends PluginSettingTab {
                     dropdown.setValue(this.availableModels[0]);
                 }
                 
-                dropdown.onChange(async (value) => {
+                dropdown.onChange((value) => {
                     this.plugin.settings.llmModel = value;
-                    await this.plugin.saveSettings();
+                    void this.plugin.saveSettings();
                 });
             });
         } else {
@@ -112,9 +120,9 @@ export class GraphMindSettingTab extends PluginSettingTab {
                     dropdown.setValue(this.availableModels[0]);
                 }
                 
-                dropdown.onChange(async (value) => {
+                dropdown.onChange((value) => {
                     this.plugin.settings.embeddingModel = value;
-                    await this.plugin.saveSettings();
+                    void this.plugin.saveSettings();
                 });
             });
         } else {
@@ -134,9 +142,10 @@ export class GraphMindSettingTab extends PluginSettingTab {
             .setDesc('Reload the list of available Ollama models')
             .addButton(button => button
                 .setButtonText('Refresh')
-                .onClick(async () => {
-                    await this.loadAvailableModels();
-                    this.display(); // Refresh the page to show updated models
+                .onClick(() => {
+                    void this.loadAvailableModels().then(() => {
+                        this.renderSettings(); // Refresh the page to show updated models
+                    });
                 }));
     }
 }

@@ -1,31 +1,25 @@
 // @ts-ignore - MiniSearch is available at runtime
 import MiniSearch from 'minisearch';
 
-// @ts-ignore - nodejieba may not be available in all environments
-let jieba: any = null;
+// nodejieba is not available in Obsidian worker runtime; fall back to basic tokenization.
+const jieba: null = null;
 const DEBUG = true;
 const debugLog = (...args: unknown[]) => {
-    if (DEBUG) console.log(...args);
+    if (DEBUG) console.debug(...args);
 };
-try {
-    jieba = require('nodejieba');
-    debugLog('[Worker] nodejieba loaded successfully');
-} catch (e) {
-    console.warn('[Worker] nodejieba not available, using fallback CJK tokenization');
-}
 
 export type WorkerCommand = 'init' | 'index' | 'delete' | 'search';
 
 export interface WorkerMessage {
     command: WorkerCommand;
-    payload: any;
+    payload: unknown;
     id: string;
 }
 
 export interface WorkerResponse {
     id: string;
     status: 'success' | 'error';
-    data?: any;
+    data?: unknown;
     error?: string;
 }
 
@@ -87,20 +81,8 @@ const initMiniSearch = () => {
                 }
                 if (currentToken) tokens.push(currentToken);
                 
-                // Step 2: Apply Chinese segmentation if available
-                let processedTokens = tokens;
-                if (jieba) {
-                    processedTokens = [];
-                    for (const token of tokens) {
-                        if (hasCJK(token)) {
-                            // Use jieba for Chinese text
-                            const segments = jieba.cut(token, true); // search mode
-                            processedTokens.push(...segments);
-                        } else {
-                            processedTokens.push(token);
-                        }
-                    }
-                }
+                // Step 2: No external segmenter available in worker runtime
+                const processedTokens = tokens;
                 
                 // Step 3: Expand tokens with camelCase and hyphen splits
                 const expandedTokens: string[] = [];
@@ -137,33 +119,46 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     const { command, payload, id } = event.data;
 
     try {
-        let result;
+        let result: unknown;
 
         switch (command) {
-            case 'init':
+            case 'init': {
                 initMiniSearch();
                 result = { message: "Worker initialized" };
                 break;
-
-            case 'index':
+            }
+            case 'index': {
                 if (!miniSearch) initMiniSearch();
-                const { id: docId, content, meta } = payload;
+                const { id: docId, content, meta } = payload as { id: string; content: string; meta: Record<string, unknown> };
+                const metaData = meta as {
+                    basename?: string;
+                    aliases?: string;
+                    filePath?: string;
+                    h1?: string;
+                    h2?: string;
+                    h3?: string;
+                    tags?: string;
+                    urls?: string;
+                    links?: string;
+                    mtime?: number;
+                    frontmatter?: Record<string, string>;
+                };
 
                 // Build rich document object
                 const doc = {
                     id: docId,
-                    basename: meta.basename || meta.filePath.split('/').pop()?.replace(/\.md$/, '') || 'Untitled',
-                    aliases: meta.aliases || '',
-                    path: meta.filePath,
+                    basename: metaData.basename || metaData.filePath?.split('/').pop()?.replace(/\.md$/, '') || 'Untitled',
+                    aliases: metaData.aliases || '',
+                    path: metaData.filePath || '',
                     content: content,
-                    h1: meta.h1 || '',
-                    h2: meta.h2 || '',
-                    h3: meta.h3 || '',
-                    tags: meta.tags || '',
-                    urls: meta.urls || '',
-                    links: meta.links || '',
-                    mtime: meta.mtime || Date.now(),
-                    frontmatter: meta.frontmatter || {}
+                    h1: metaData.h1 || '',
+                    h2: metaData.h2 || '',
+                    h3: metaData.h3 || '',
+                    tags: metaData.tags || '',
+                    urls: metaData.urls || '',
+                    links: metaData.links || '',
+                    mtime: metaData.mtime || Date.now(),
+                    frontmatter: metaData.frontmatter || {}
                 };
 
                 // Store full content for retrieval
@@ -176,10 +171,10 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
                 
                 result = { message: "Indexed", docId };
                 break;
-
-            case 'delete':
+            }
+            case 'delete': {
                 if (!miniSearch) initMiniSearch();
-                const { path } = payload;
+                const { path } = payload as { path: string };
                 
                 // Find all docs with this path
                 const idsToDelete: string[] = [];
@@ -196,15 +191,16 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
 
                 result = { message: "Deleted", count: idsToDelete.length };
                 break;
+            }
 
             // ================= SEARCH LOGIC =================
-            case 'search':
-                debugLog(`[Worker] 🔍 Search request received: "${payload.query}"`);
+            case 'search': {
+                const { query, topK = 30 } = payload as { query: string; topK?: number };
+                debugLog(`[Worker] 🔍 Search request received: "${query}"`);
                 const searchStart = performance.now();
 
                 if (!miniSearch) initMiniSearch();
-
-                const { query, topK = 30 } = payload; // Default to higher topK for reranking candidates
+                // Default to higher topK for reranking candidates
 
             // --- Step 1: Keyword Search (Graph Mind-style) ---
                 debugLog("[Worker] 1. Keyword Search...");
@@ -226,7 +222,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
                     // Only prefix for terms >= 2 chars
                     prefix: (term: string) => term.length >= 2,
                     // Boost recent documents (Graph Mind-style recency)
-                    boostDocument: (docId: string, term: string, storedFields: any) => {
+                    boostDocument: (docId: string, term: string, storedFields: { mtime?: number }) => {
                         if (!storedFields?.mtime) return 1;
                         
                         const now = Date.now();
@@ -240,7 +236,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
                 });
                 
                 // Return candidates with full content for the main thread to rerank
-                const candidates = miniResults.slice(0, topK).map((r: any) => {
+                const candidates = miniResults.slice(0, topK).map((r: { id: string; score: number }) => {
                     const info = documents.get(r.id);
                     return {
                         id: r.id,
@@ -256,6 +252,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
                 result = { results: candidates };
                 debugLog(`[Worker] Search finished in ${(performance.now() - searchStart).toFixed(2)}ms`);
                 break;
+            }
 
             default:
                 throw new Error(`Unknown command: ${command}`);
@@ -268,12 +265,12 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
         };
         self.postMessage(response);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error(`Error in worker [${command}]:`, error);
         const response: WorkerResponse = {
             id,
             status: 'error',
-            error: error.message || String(error)
+            error: error instanceof Error ? error.message : String(error)
         };
         self.postMessage(response);
     }

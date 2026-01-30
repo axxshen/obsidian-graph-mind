@@ -16,13 +16,13 @@ export class Indexer {
         const files = this.vault.getMarkdownFiles();
         let processedCount = 0;
         const total = files.length;
-        if (this.debug) console.log(`[Graph Mind] Indexing start: ${total} files`);
+        if (this.debug) console.debug(`[Graph Mind] Indexing start: ${total} files`);
 
         for (const file of files) {
             await this.indexFile(file);
             processedCount++;
             if (onProgress) onProgress(processedCount, total);
-            if (this.debug) console.log(`[Graph Mind] Indexing progress: ${processedCount}/${total} (${file.path})`);
+            if (this.debug) console.debug(`[Graph Mind] Indexing progress: ${processedCount}/${total} (${file.path})`);
         }
     }
 
@@ -37,7 +37,7 @@ export class Indexer {
             const metadata = this.extractMetadata(content, file);
             
             const chunks = await this.chunkContent(content, file.path, metadata);
-            if (this.debug) console.log(`[Graph Mind] Indexing file: ${file.path} (${chunks.length} chunks)`);
+            if (this.debug) console.debug(`[Graph Mind] Indexing file: ${file.path} (${chunks.length} chunks)`);
 
             // Process chunks
             for (const chunk of chunks) {
@@ -57,9 +57,9 @@ export class Indexer {
         }
     }
 
-    private extractMetadata(content: string, file: TFile): any {
+    private extractMetadata(content: string, file: TFile): ExtractedMetadata {
         // Extract frontmatter (YAML between ---)
-        let frontmatter: any = {};
+        const frontmatter: Record<string, string> = {};
         const frontmatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
         if (frontmatterMatch) {
             try {
@@ -70,7 +70,11 @@ export class Indexer {
                     const [key, ...valueParts] = line.split(':');
                     if (key && valueParts.length > 0) {
                         const value = valueParts.join(':').trim();
-                        frontmatter[key.trim()] = value.replace(/["'\[\]]/g, ''); // Remove quotes/brackets
+                        const cleanedValue = value
+                            .replace(/["']/g, "")
+                            .replace(/\[/g, "")
+                            .replace(/\]/g, "");
+                        frontmatter[key.trim()] = cleanedValue; // Remove quotes/brackets
                     }
                 }
             } catch (e) {
@@ -93,17 +97,17 @@ export class Indexer {
         
         // Extract markdown links/URLs
         const urlMatches = content.match(/https?:\/\/[^\s)]+/g) || [];
-        const wikiLinks = content.match(/\[\[([^\]]+)\]\]/g) || [];
+        const wikiLinks = content.match(/\[\[([^]]+)\]\]/g) || [];
         
         return {
             basename: file.basename,
-            aliases: typeof aliases === 'string' ? aliases : Array.isArray(aliases) ? aliases.join(' ') : '',
+            aliases,
             h1: h1Matches.map(h => h.replace(/^# /, '')).join(' '),
             h2: h2Matches.map(h => h.replace(/^## /, '')).join(' '),
             h3: h3Matches.map(h => h.replace(/^### /, '')).join(' '),
             tags: allTags.join(' '),
             urls: urlMatches.join(' '),
-            links: wikiLinks.map(l => l.replace(/[\[\]]/g, '')).join(' '),
+            links: wikiLinks.map(l => l.replace(/\[/g, "").replace(/\]/g, "")).join(' '),
             mtime: file.stat.mtime,
             // Include all frontmatter fields for custom property boosting
             frontmatter
@@ -119,7 +123,7 @@ export class Indexer {
         this.worker.postMessage(message);
     }
 
-    private async chunkContent(content: string, filePath: string, metadata: any): Promise<Array<{ id: string, text: string, meta: any }>> {
+    private async chunkContent(content: string, filePath: string, metadata: ExtractedMetadata): Promise<Array<{ id: string, text: string, meta: ExtractedMetadata }>> {
         // Use Mastra's semantic chunking for consistent, high-quality chunks
         // Same strategy used in agent reranking - unified approach
         try {
@@ -159,4 +163,19 @@ export class Indexer {
             }));
         }
     }
+}
+
+interface ExtractedMetadata {
+    basename: string;
+    aliases: string;
+    h1: string;
+    h2: string;
+    h3: string;
+    tags: string;
+    urls: string;
+    links: string;
+    mtime: number;
+    frontmatter: Record<string, string>;
+    filePath?: string;
+    chunkIndex?: number;
 }

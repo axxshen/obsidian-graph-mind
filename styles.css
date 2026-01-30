@@ -234,3 +234,7 @@
 .chat-content a {
     cursor: pointer;
 }
+
+.is-hidden {
+    display: none !important;
+}
