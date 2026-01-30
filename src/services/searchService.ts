@@ -33,10 +33,14 @@ export class SearchService {
         });
     }
 
+    private finalizeRequest(id: string): void {
+        this.pendingRequests.delete(id);
+    }
+
     public async search(query: string, topK: number = 15, timeoutMs: number = 30000): Promise<SearchResult[]> {
         const id = `search-${this.idCounter++}`;
         
-        const timeoutPromise = new Promise<never>((_, reject) => {
+        const timeoutPromise = new Promise<SearchResult[]>((_, reject) => {
             setTimeout(() => reject(new Error('Search timeout exceeded')), timeoutMs);
         });
         
@@ -50,11 +54,11 @@ export class SearchService {
             };
             
             this.worker.postMessage(message);
-        }).then((response) => (response as { results: SearchResult[] }).results);
+        }).then((response) => (response as unknown as { results: SearchResult[] }).results);
         
         return Promise.race([searchPromise, timeoutPromise]).finally(() => {
             // Clean up pending request if timeout occurred
-            this.pendingRequests.delete(id);
+            this.finalizeRequest(id);
         });
     }
 
