@@ -56,12 +56,7 @@ export class GraphMindSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.ollamaBaseUrl)
                 .onChange((value) => {
                     this.plugin.settings.ollamaBaseUrl = value.trim();
-                    void this.plugin.saveSettings().then(() => {
-                        // Reload models when URL changes
-                        void this.loadAvailableModels().then(() => {
-                            this.renderSettings(); // Refresh the settings page
-                        });
-                    });
+                    void this.plugin.saveSettings();
                 }));
 
         // LLM Model Dropdown
