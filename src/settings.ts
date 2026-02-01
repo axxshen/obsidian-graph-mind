@@ -52,10 +52,10 @@ export class GraphMindSettingTab extends PluginSettingTab {
             .setName('Ollama base URL')
             .setDesc('Ollama server URL')
             .addText(text => text
-                .setPlaceholder('Example http://localhost:11434')
+                .setPlaceholder(DEFAULT_SETTINGS.ollamaBaseUrl)
                 .setValue(this.plugin.settings.ollamaBaseUrl)
                 .onChange((value) => {
-                    this.plugin.settings.ollamaBaseUrl = value || DEFAULT_SETTINGS.ollamaBaseUrl;
+                    this.plugin.settings.ollamaBaseUrl = value.trim();
                     void this.plugin.saveSettings().then(() => {
                         // Reload models when URL changes
                         void this.loadAvailableModels().then(() => {
