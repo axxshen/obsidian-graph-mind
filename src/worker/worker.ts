@@ -23,7 +23,7 @@ export interface WorkerResponse {
 
 // State holders
 let miniSearch: MiniSearch | null = null;
-let documents: Map<string, { title: string, path: string, content: string }> = new Map();
+const documents: Map<string, { title: string, path: string, content: string }> = new Map();
 
 const initMiniSearch = () => {
     if (!miniSearch) {
@@ -220,7 +220,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
                     // Only prefix for terms >= 2 chars
                     prefix: (term: string) => term.length >= 2,
                     // Boost recent documents (Graph Mind-style recency)
-                    boostDocument: (docId: string, term: string, storedFields: { mtime?: number }) => {
+                    boostDocument: (_docId: string, _term: string, storedFields: { mtime?: number }) => {
                         if (!storedFields?.mtime) return 1;
                         
                         const now = Date.now();

@@ -90,13 +90,13 @@ export class GraphMindAgent {
             
             // Small delay between batches to allow Ollama to stabilize
             if (i + batchSize < items.length) {
-                await new Promise(resolve => setTimeout(resolve, 100));
+                await new Promise(resolve => activeWindow.setTimeout(resolve, 100));
             }
         }
         return results;
     }
 
-    async *chatStream(userQuery: string, history: Message[]): AsyncGenerator<AgentEvent, void, unknown> {
+    async *chatStream(userQuery: string, _history: Message[]): AsyncGenerator<AgentEvent, void, unknown> {
         // Parse advanced query features
         const parsedQuery: ParsedQuery = parseQuery(userQuery);
         
@@ -300,7 +300,7 @@ export class GraphMindAgent {
                 
                 // Small delay between batches to allow Ollama to stabilize
                 if (i + BATCH_SIZE < chunks.length) {
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                    await new Promise(resolve => activeWindow.setTimeout(resolve, 100));
                 }
             }
 

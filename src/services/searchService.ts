@@ -13,7 +13,7 @@ export interface SearchResult {
 export class SearchService {
     private worker: Worker;
     private pendingRequests: Map<string, { resolve: (data: unknown) => void, reject: (error: Error) => void }>;
-    private idCounter: number = 0;
+    private idCounter = 0;
 
     constructor(worker: Worker) {
         this.worker = worker;
@@ -37,11 +37,11 @@ export class SearchService {
         this.pendingRequests.delete(id);
     }
 
-    public async search(query: string, topK: number = 15, timeoutMs: number = 30000): Promise<SearchResult[]> {
+    public async search(query: string, topK = 15, timeoutMs = 30000): Promise<SearchResult[]> {
         const id = `search-${this.idCounter++}`;
         
         const timeoutPromise = new Promise<SearchResult[]>((_, reject) => {
-            setTimeout(() => reject(new Error('Search timeout exceeded')), timeoutMs);
+            activeWindow.setTimeout(() => reject(new Error('Search timeout exceeded')), timeoutMs);
         });
         
         const searchPromise = new Promise<unknown>((resolve, reject) => {

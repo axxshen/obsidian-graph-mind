@@ -5,7 +5,7 @@ import { MDocument } from "@mastra/rag";
 export class Indexer {
     private vault: Vault;
     private worker: Worker;
-    private debug: boolean = true;
+    private debug = true;
 
     constructor(vault: Vault, worker: Worker) {
         this.vault = vault;

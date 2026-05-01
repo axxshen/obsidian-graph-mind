@@ -11,9 +11,9 @@ export class OllamaService {
     private defaultEmbeddingModel: string;
 
     constructor(
-        baseUrl: string = 'http://localhost:11434', 
-        defaultModel: string = 'llama3.2:latest',
-        defaultEmbeddingModel: string = 'nomic-embed-text'
+        baseUrl = 'http://localhost:11434',
+        defaultModel = 'llama3.2:latest',
+        defaultEmbeddingModel = 'nomic-embed-text'
     ) {
         this.baseUrl = baseUrl;
         this.defaultModel = defaultModel;
@@ -56,7 +56,7 @@ export class OllamaService {
         if (content) yield content;
     }
 
-    async getEmbeddings(prompt: string, model?: string, retries: number = 3): Promise<number[]> {
+    async getEmbeddings(prompt: string, model?: string, retries = 3): Promise<number[]> {
         const selectedModel = model || this.defaultEmbeddingModel;
         
         for (let attempt = 0; attempt < retries; attempt++) {
@@ -88,7 +88,7 @@ export class OllamaService {
                 // Exponential backoff: wait 500ms, 1000ms, 1500ms...
                 const waitTime = 500 * (attempt + 1);
                 console.warn(`Embedding failed (attempt ${attempt + 1}/${retries}), retrying in ${waitTime}ms...`);
-                await new Promise(resolve => setTimeout(resolve, waitTime));
+                await new Promise(resolve => activeWindow.setTimeout(resolve, waitTime));
             }
         }
         throw new Error("Embedding failed after all retries");

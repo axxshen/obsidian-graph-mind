@@ -3,6 +3,7 @@ import { Indexer } from './src/indexer';
 import { SearchService } from './src/services/searchService';
 import { ChatView, VIEW_TYPE_CHAT } from './src/views/chatView';
 import { GraphMindSettings, DEFAULT_SETTINGS, GraphMindSettingTab } from './src/settings';
+import { WorkerResponse } from './src/worker/worker';
 import workerCode from "virtual:worker";
 
 const DEBUG = true;
@@ -98,7 +99,7 @@ export default class GraphMindPlugin extends Plugin {
     }
 
     async loadSettings() {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<GraphMindSettings>);
     }
 
     async saveSettings() {
@@ -150,11 +151,11 @@ export default class GraphMindPlugin extends Plugin {
 
             // Handle worker messages using addEventListener to allow SearchService to also listen
             this.worker.addEventListener('message', (e) => {
-                const { status, error, data } = e.data;
+                const { status, error, data } = e.data as WorkerResponse;
                 if (status === 'error') {
                     console.error("Worker Error:", error);
                     new Notice("Graph Mind worker error: " + error);
-                } else if (data && data.message === 'Worker initialized') {
+                } else if (data && (data as { message?: string }).message === 'Worker initialized') {
                     debugLog("Graph Mind worker initialized");
                     this.statusBarItem.setText('Ready');
                 }

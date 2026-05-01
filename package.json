@@ -12,15 +12,19 @@
 	"author": "",
 	"license": "GPL-3.0-only",
 	"devDependencies": {
+		"@eslint/js": "^10.0.1",
 		"@types/node": "^16.11.6",
 		"@typescript-eslint/eslint-plugin": "5.29.0",
 		"@typescript-eslint/parser": "5.29.0",
 		"builtin-modules": "3.3.0",
 		"esbuild": "0.17.3",
 		"esbuild-plugin-copy": "^2.1.1",
+		"eslint": "^9.39.4",
+		"eslint-plugin-obsidianmd": "^0.2.9",
 		"obsidian": "latest",
 		"tslib": "2.4.0",
-		"typescript": "^5.9.3"
+		"typescript": "^5.9.3",
+		"typescript-eslint": "^8.59.1"
 	},
 	"dependencies": {
 		"@mastra/rag": "^1.3.6",

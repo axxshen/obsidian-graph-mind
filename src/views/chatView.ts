@@ -15,7 +15,7 @@ export class ChatView extends ItemView {
     constructor(leaf: WorkspaceLeaf, plugin: GraphMindPlugin) {
         super(leaf);
         this.plugin = plugin;
-        this.agent = new GraphMindAgent(plugin, (msg) => {}); // Notify handled via stream
+        this.agent = new GraphMindAgent(plugin, (_msg) => {}); // Notify handled via stream
     }
 
     getViewType(): string {
@@ -153,7 +153,7 @@ export class ChatView extends ItemView {
                     // Pre-process citations: [1] -> [[File|1]]
                     let processedAnswer = fullAnswer;
                     if (sources.length > 0) {
-                        processedAnswer = fullAnswer.replace(/\[(\d+)\]/g, (match, id) => {
+                        processedAnswer = fullAnswer.replace(/\[(\d+)\]/g, (match: string, id: string) => {
                             const index = parseInt(id) - 1;
                             if (sources[index]) {
                                 return `[[${sources[index].path}|${id}]]`;
@@ -186,7 +186,7 @@ export class ChatView extends ItemView {
                     
                     // Add sources to UI
                     thinkingSources.empty();
-                    sources.forEach((source, index) => {
+                    sources.forEach((source) => {
                         const sourceEl = thinkingSources.createEl("a", { 
                             cls: "thinking-source-item",
                             href: source.path 
@@ -238,7 +238,7 @@ export class ChatView extends ItemView {
                         copyBtn.addEventListener("click", () => {
                             void navigator.clipboard.writeText(fullAnswer).then(() => {
                                 copyBtn.textContent = "Copied!";
-                                setTimeout(() => {
+                                activeWindow.setTimeout(() => {
                                     copyBtn.empty();
                                     setIcon(copyBtn, "copy");
                                 }, 2000);
@@ -268,7 +268,7 @@ export class ChatView extends ItemView {
         this.scrollToBottom();
     }
 
-    addThought(text: string) {
+    addThought(_text: string) {
         // Legacy support
     }
 
